@@ -20,8 +20,21 @@ class UiTest {
         rule.onNodeWithText("Сохранить и проверить JSON").assertExists()
         rule.onNodeWithText("Неделя").performClick()
         rule.onNodeWithText("Показать обе недели").assertExists()
+        rule.onNodeWithText("ВТ").performClick()
+        rule.onNodeWithText("1 пара · 08:00–09:20").performClick()
+        rule.onNodeWithText("Одна").performClick()
+        rule.onNodeWithText("Предмет").performTextInput("Тест ОАП")
+        rule.onNodeWithText("Аудитория").performTextInput("105")
+        rule.onNodeWithText("Сохранить").performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithText("Ауд. 105").fetchSemanticsNodes().isNotEmpty()}
         rule.onNodeWithText("ДЗ").performClick()
         rule.onNodeWithText("Добавить задание").assertDoesNotExist()
         rule.onNodeWithContentDescription("Добавить задание").assertExists()
+        rule.onNodeWithContentDescription("Добавить задание").performClick()
+        rule.onNodeWithText("Предмет").performTextInput("Тест ОАП")
+        rule.onNodeWithText("Что нужно сделать?").performTextInput("Практическая работа 1")
+        rule.onNodeWithText("Сохранить").performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithText("Практическая работа 1").fetchSemanticsNodes().isNotEmpty()}
+        rule.onNodeWithText("Практическая работа 1").assertExists()
     }
 }
