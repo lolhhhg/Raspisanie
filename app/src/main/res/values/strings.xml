@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Расписание</string>
+    <string name="empty_hint">Загрузите PDF или добавьте пары вручную</string>
+</resources>
