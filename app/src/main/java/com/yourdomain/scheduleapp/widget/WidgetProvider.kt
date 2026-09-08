@@ -27,7 +27,7 @@ private fun click(context:Context)=PendingIntent.getActivity(context,0,Intent(co
 
 class NextPairWidget:AppWidgetProvider(){
     override fun onUpdate(c:Context,m:AppWidgetManager,ids:IntArray)=update(c,m,ids)
-    companion object fun update(c:Context,m:AppWidgetManager,ids:IntArray){
+    companion object { fun update(c:Context,m:AppWidgetManager,ids:IntArray){
         val date=LocalDate.now();val day=date.dayOfWeek.value;val now=LocalTime.now();val slots=if(day<=6)times(day)else emptyList()
         val index=slots.indexOfFirst{now<LocalTime.parse(it.second)}
         val row=if(index>=0)WidgetUpdater.row(c,day,index+1)else null;val active=currentPart(date)
@@ -35,10 +35,10 @@ class NextPairWidget:AppWidgetProvider(){
         val subject=row?.let{if(same||active==PartType.NUMERATOR)it.numeratorSubject else it.denominatorSubject}.orEmpty().ifBlank{"Нет пары"}
         val room=row?.let{if(same||active==PartType.NUMERATOR)it.numeratorRoom else it.denominatorRoom}.orEmpty()
         ids.forEach{id->val v=RemoteViews(c.packageName,R.layout.widget_next_pair);v.setTextViewText(R.id.widget_title,if(index>=0)"${index+1} ПАРА · ${slots[index].first}–${slots[index].second}" else "ПАРЫ ЗАКОНЧИЛИСЬ");v.setTextViewText(R.id.widget_subject,subject);v.setTextViewText(R.id.widget_room,if(room.isBlank())if(active==PartType.NUMERATOR)"Числитель" else "Знаменатель" else "Ауд. $room · ${if(active==PartType.NUMERATOR)"числитель" else "знаменатель"}");v.setOnClickPendingIntent(R.id.widget_root,click(c));m.updateAppWidget(id,v)}
-    }
+    }}
 }
 
 class BellsWidget:AppWidgetProvider(){
     override fun onUpdate(c:Context,m:AppWidgetManager,ids:IntArray)=update(c,m,ids)
-    companion object fun update(c:Context,m:AppWidgetManager,ids:IntArray){val day=LocalDate.now().dayOfWeek.value;val lines=if(day<=6)times(day).mapIndexed{i,t->"${i+1}  ${t.first}–${t.second}"}.joinToString("   ")else "Сегодня выходной";ids.forEach{id->val v=RemoteViews(c.packageName,R.layout.widget_bells);v.setTextViewText(R.id.widget_bells_title,if(day==1)"ПОНЕДЕЛЬНИК · ЗВОНКИ" else "ЗВОНКИ СЕГОДНЯ");v.setTextViewText(R.id.widget_bells_text,lines);v.setOnClickPendingIntent(R.id.widget_bells_root,click(c));m.updateAppWidget(id,v)}}
+    companion object { fun update(c:Context,m:AppWidgetManager,ids:IntArray){val day=LocalDate.now().dayOfWeek.value;val lines=if(day<=6)times(day).mapIndexed{i,t->"${i+1}  ${t.first}–${t.second}"}.joinToString("   ")else "Сегодня выходной";ids.forEach{id->val v=RemoteViews(c.packageName,R.layout.widget_bells);v.setTextViewText(R.id.widget_bells_title,if(day==1)"ПОНЕДЕЛЬНИК · ЗВОНКИ" else "ЗВОНКИ СЕГОДНЯ");v.setTextViewText(R.id.widget_bells_text,lines);v.setOnClickPendingIntent(R.id.widget_bells_root,click(c));m.updateAppWidget(id,v)}}}
 }

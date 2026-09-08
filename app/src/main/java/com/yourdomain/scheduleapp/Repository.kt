@@ -30,11 +30,9 @@ class ScheduleRepository @Inject constructor(private val dao: ScheduleDao,@Appli
         val old=dao.get(day,number) ?: ScheduleItemEntity(dayOfWeek=day,pairNumber=number)
         edit(day,number,part,if(part==PartType.NUMERATOR) old.numeratorSubject else old.denominatorSubject,if(part==PartType.NUMERATOR) old.numeratorRoom else old.denominatorRoom,text)
     }
-    suspend fun homeworkForSubject(subject:String,text:String)=try{
-        if(subject.isBlank())return
-        val updated=dao.getAllNow().map{r->r.copy(numeratorHomework=if(r.numeratorSubject.equals(subject,true))text else r.numeratorHomework,denominatorHomework=if(r.denominatorSubject.equals(subject,true))text else r.denominatorHomework,lastUpdated=System.currentTimeMillis())}
-        dao.insertAll(updated);WidgetUpdater.saveAll(context,updated);WidgetUpdater.updateAll(context)
-    }catch(e:Exception){Log.e("ScheduleApp","homeworkForSubject",e);throw e}
+    suspend fun homeworkForSubject(subject:String,text:String){try{
+        if(subject.isNotBlank()){val updated=dao.getAllNow().map{r->r.copy(numeratorHomework=if(r.numeratorSubject.equals(subject,true))text else r.numeratorHomework,denominatorHomework=if(r.denominatorSubject.equals(subject,true))text else r.denominatorHomework,lastUpdated=System.currentTimeMillis())};dao.insertAll(updated);WidgetUpdater.saveAll(context,updated);WidgetUpdater.updateAll(context)}
+    }catch(e:Exception){Log.e("ScheduleApp","homeworkForSubject",e);throw e}}
     suspend fun save(days: List<DailySchedule>) = try {
         val items=days.flatMap { d -> d.pairs.map { p -> ScheduleItemEntity(dayOfWeek=d.dayOfWeek,pairNumber=p.pairNumber,numeratorSubject=p.numerator.subject,denominatorSubject=p.denominator.subject,numeratorRoom=p.numerator.room,denominatorRoom=p.denominator.room,numeratorHomework=p.numerator.homework,denominatorHomework=p.denominator.homework) } }
         dao.clearAll(); dao.insertAll(items);WidgetUpdater.saveAll(context,items);WidgetUpdater.updateAll(context)
