@@ -5,3 +5,4 @@ enum class PairMode { SPLIT, SAME }
 data class PairDetail(val subject: String = "", val room: String = "", val homework: String = "")
 data class SchedulePair(val pairNumber: Int, val numerator: PairDetail = PairDetail(), val denominator: PairDetail = PairDetail())
 data class DailySchedule(val dayOfWeek: Int, val pairs: List<SchedulePair>)
+data class ScheduleBackup(val version:Int=1,val rows:List<ScheduleItemEntity>,val pairModes:Map<String,String>)

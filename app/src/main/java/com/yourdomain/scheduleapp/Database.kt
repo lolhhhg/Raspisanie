@@ -20,6 +20,7 @@ data class VkPostImageEntity(@PrimaryKey val url: String, val postDate: String, 
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertAll(items: List<ScheduleItemEntity>)
     @Query("SELECT * FROM schedule WHERE dayOfWeek=:day ORDER BY pairNumber") fun observeDay(day: Int): Flow<List<ScheduleItemEntity>>
     @Query("SELECT * FROM schedule ORDER BY dayOfWeek,pairNumber") fun observeAll(): Flow<List<ScheduleItemEntity>>
+    @Query("SELECT * FROM schedule ORDER BY dayOfWeek,pairNumber") suspend fun getAllNow(): List<ScheduleItemEntity>
     @Query("SELECT * FROM schedule WHERE dayOfWeek=:day AND pairNumber=:pair LIMIT 1") suspend fun get(day: Int, pair: Int): ScheduleItemEntity?
     @Query("DELETE FROM schedule") suspend fun clearAll()
 }

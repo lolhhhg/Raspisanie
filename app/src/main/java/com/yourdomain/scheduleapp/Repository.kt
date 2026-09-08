@@ -11,8 +11,9 @@ import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
 import dagger.hilt.android.qualifiers.ApplicationContext
+import com.yourdomain.scheduleapp.widget.WidgetUpdater
 
-class ScheduleRepository @Inject constructor(private val dao: ScheduleDao) {
+class ScheduleRepository @Inject constructor(private val dao: ScheduleDao,@ApplicationContext private val context:Context) {
     fun day(day: Int): Flow<DailySchedule> = dao.observeDay(day).map { rows ->
         DailySchedule(day, (1..5).map { n -> rows.firstOrNull { it.pairNumber == n }.toPair(n) })
     }
@@ -23,16 +24,23 @@ class ScheduleRepository @Inject constructor(private val dao: ScheduleDao) {
         else old.copy(denominatorSubject=subject, denominatorRoom=room, denominatorHomework=homework ?: old.denominatorHomework)
         if (copy) next = next.copy(numeratorSubject=subject, numeratorRoom=room, denominatorSubject=subject, denominatorRoom=room)
         dao.insertAll(listOf(next.copy(id=old.id,lastUpdated=System.currentTimeMillis())))
+        WidgetUpdater.saveRow(context,next.copy(id=old.id));WidgetUpdater.updateAll(context)
     } catch (e: Exception) { Log.e("ScheduleApp", "edit", e); throw e }
     suspend fun homework(day:Int, number:Int, part:PartType, text:String) {
         val old=dao.get(day,number) ?: ScheduleItemEntity(dayOfWeek=day,pairNumber=number)
         edit(day,number,part,if(part==PartType.NUMERATOR) old.numeratorSubject else old.denominatorSubject,if(part==PartType.NUMERATOR) old.numeratorRoom else old.denominatorRoom,text)
     }
+    suspend fun homeworkForSubject(subject:String,text:String)=try{
+        if(subject.isBlank())return
+        val updated=dao.getAllNow().map{r->r.copy(numeratorHomework=if(r.numeratorSubject.equals(subject,true))text else r.numeratorHomework,denominatorHomework=if(r.denominatorSubject.equals(subject,true))text else r.denominatorHomework,lastUpdated=System.currentTimeMillis())}
+        dao.insertAll(updated);WidgetUpdater.saveAll(context,updated);WidgetUpdater.updateAll(context)
+    }catch(e:Exception){Log.e("ScheduleApp","homeworkForSubject",e);throw e}
     suspend fun save(days: List<DailySchedule>) = try {
         val items=days.flatMap { d -> d.pairs.map { p -> ScheduleItemEntity(dayOfWeek=d.dayOfWeek,pairNumber=p.pairNumber,numeratorSubject=p.numerator.subject,denominatorSubject=p.denominator.subject,numeratorRoom=p.numerator.room,denominatorRoom=p.denominator.room,numeratorHomework=p.numerator.homework,denominatorHomework=p.denominator.homework) } }
-        dao.clearAll(); dao.insertAll(items)
+        dao.clearAll(); dao.insertAll(items);WidgetUpdater.saveAll(context,items);WidgetUpdater.updateAll(context)
     } catch(e:Exception){ Log.e("ScheduleApp","save",e); throw e }
     private fun ScheduleItemEntity?.toPair(n:Int)=this?.let { SchedulePair(n,PairDetail(it.numeratorSubject,it.numeratorRoom,it.numeratorHomework),PairDetail(it.denominatorSubject,it.denominatorRoom,it.denominatorHomework)) } ?: SchedulePair(n)
+    suspend fun snapshot()=dao.getAllNow()
 }
 
 class PdfScheduleParser @Inject constructor(@ApplicationContext private val context: Context) {
