@@ -22,7 +22,7 @@ object Background{
     val executor=Executors.newSingleThreadExecutor()
     fun refresh(context:Context){val c=context.applicationContext;executor.execute{runCatching{update(c)}}}
     private fun read(c:Context):Backup?=runCatching{BackupCodec.decode(File(c.filesDir,"widget-state.json").readText())}.getOrNull()
-    private fun open(c:Context)=PendingIntent.getActivity(c,0,Intent(c,MainActivity::class.java),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    private fun open(c:Context,page:Int=0)=PendingIntent.getActivity(c,page,Intent(c,MainActivity::class.java).putExtra("page",page),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     private fun millis(t:LocalDateTime)=t.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
     fun handle(c:Context,i:Intent){
         if(i.action=="com.yourdomain.scheduleapp.TICK"){
@@ -50,7 +50,7 @@ object Background{
             val countdown=type==0&&next!=null&&next.date==date
             v.setViewVisibility(R.id.planner_widget_timer,if(countdown)android.view.View.VISIBLE else android.view.View.GONE)
             if(countdown){val until=if(now>=next!!.start)next.end else next.start;v.setChronometer(R.id.planner_widget_timer,SystemClock.elapsedRealtime()+Duration.between(now,until).toMillis(),if(now>=next.start)"До конца %s" else "До начала %s",true);v.setChronometerCountDown(R.id.planner_widget_timer,true)}
-            v.setOnClickPendingIntent(R.id.planner_widget_root,open(c));m.updateAppWidget(id,v)
+            v.setOnClickPendingIntent(R.id.planner_widget_root,open(c,if(type==3)2 else if(type==1)1 else 0));m.updateAppWidget(id,v)
         }}
         schedule(c,b,now)
     }
