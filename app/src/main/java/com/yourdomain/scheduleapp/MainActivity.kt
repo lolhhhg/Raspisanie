@@ -36,7 +36,7 @@ class MainActivity:ComponentActivity(){
 }
 
 private val Orange=Color(0xFFFF6B00)
-@Composable fun ScheduleTheme(content:@Composable()->Unit){ MaterialTheme(colorScheme=if(isSystemInDarkTheme()) darkColorScheme(primary=Orange) else lightColorScheme(primary=Orange),content=content) }
+@Composable fun ScheduleTheme(content: @Composable () -> Unit){ MaterialTheme(colorScheme=if(isSystemInDarkTheme()) darkColorScheme(primary=Orange) else lightColorScheme(primary=Orange),content=content) }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun App(vm:MainViewModel= hiltViewModel()){
@@ -73,9 +73,31 @@ private val Orange=Color(0xFFFF6B00)
 @Composable fun HomeworkDialog(subject:String,old:String,cancel:()->Unit,save:(String)->Unit){var text by remember{mutableStateOf(old)};AlertDialog(onDismissRequest=cancel,title={Text("Домашнее задание: $subject")},text={OutlinedTextField(text,{text=it},label={Text("Задание")},minLines=4)},confirmButton={Button(onClick={save(text)}){Text("Сохранить")}},dismissButton={Row{TextButton(onClick={text=""}){Text("Очистить")};TextButton(onClick=cancel){Text("Отмена")}}})}
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable fun HomeworkScreen(vm:MainViewModel){val rows by vm.all.collectAsState();Scaffold(topBar={TopAppBar(title={Text("ДОМАШНЕЕ ЗАДАНИЕ")})}){pad->LazyColumn(Modifier.padding(pad),contentPadding=PaddingValues(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){val dayNames=listOf("Понедельник","Вторник","Среда","Четверг","Пятница","Суббота");(1..6).forEach{d->val dayRows=rows.filter{it.dayOfWeek==d};val tasks=dayRows.flatMap{r->listOf(Triple(r.numeratorSubject,"Числ.",r.numeratorHomework),Triple(r.denominatorSubject,"Знам.",r.denominatorHomework))}.filter{it.third.isNotBlank()};if(tasks.isNotEmpty()){item{Text(dayNames[d-1],fontWeight=FontWeight.Bold,color=Orange)};items(tasks){t->Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){Text(t.first,fontWeight=FontWeight.Bold);Text(t.second,color=Orange);Text(t.third)}}}}}}}
+@Composable fun HomeworkScreen(vm:MainViewModel){
+    val rows by vm.all.collectAsState()
+    val dayNames=listOf("Понедельник","Вторник","Среда","Четверг","Пятница","Суббота")
+    Scaffold(topBar={TopAppBar(title={Text("ДОМАШНЕЕ ЗАДАНИЕ")})}){pad->
+        LazyColumn(Modifier.padding(pad),contentPadding=PaddingValues(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+            (1..6).forEach{d->
+                val dayRows=rows.filter{it.dayOfWeek==d}
+                val tasks=dayRows.flatMap{r->listOf(Triple(r.numeratorSubject,"Числ.",r.numeratorHomework),Triple(r.denominatorSubject,"Знам.",r.denominatorHomework))}.filter{it.third.isNotBlank()}
+                if(tasks.isNotEmpty()){
+                    item{Text(dayNames[d-1],fontWeight=FontWeight.Bold,color=Orange)}
+                    items(tasks){t->Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){Text(t.first,fontWeight=FontWeight.Bold);Text(t.second,color=Orange);Text(t.third)}}}
+                }
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable fun VkScreen(vm:MainViewModel){val images by vm.images.collectAsState();var full by remember{mutableStateOf<String?>(null)};Scaffold(topBar={TopAppBar(title={Text("ЕЖЕДНЕВНОЕ РАСПИСАНИЕ")},actions={TextButton(onClick=vm::refreshVk){Text("↻")};TextButton(onClick=vm::clearVk){Text("🗑")}})}){pad->if(images.isEmpty())Box(Modifier.fillMaxSize().padding(pad),contentAlignment=Alignment.Center){Text("Фото пока нет. Нажмите ↻") } else LazyVerticalGrid(GridCells.Fixed(2),Modifier.padding(pad),contentPadding=PaddingValues(8.dp)){items(images){img->Card(Modifier.padding(4.dp).clickable{full=img.url}){Box{AsyncImage(img.url,null,Modifier.fillMaxWidth().aspectRatio(1f),contentScale=ContentScale.Crop);Text(img.postDate,Modifier.align(Alignment.BottomStart).background(Color.Black.copy(.55f)).padding(6.dp),color=Color.White)}}}}};full?.let{url->androidx.compose.ui.window.Dialog(onDismissRequest={full=null}){AsyncImage(url,null,Modifier.fillMaxSize().clickable{full=null},contentScale=ContentScale.Fit)}}}
+@Composable fun VkScreen(vm:MainViewModel){
+    val images by vm.images.collectAsState();var full by remember{mutableStateOf<String?>(null)}
+    Scaffold(topBar={TopAppBar(title={Text("ЕЖЕДНЕВНОЕ РАСПИСАНИЕ")},actions={TextButton(onClick=vm::refreshVk){Text("↻")};TextButton(onClick=vm::clearVk){Text("🗑")}})}){pad->
+        if(images.isEmpty()) Box(Modifier.fillMaxSize().padding(pad),contentAlignment=Alignment.Center){Text("Фото пока нет. Нажмите ↻")}
+        else LazyVerticalGrid(GridCells.Fixed(2),Modifier.padding(pad),contentPadding=PaddingValues(8.dp)){items(images){img->Card(Modifier.padding(4.dp).clickable{full=img.url}){Box{AsyncImage(img.url,null,Modifier.fillMaxWidth().aspectRatio(1f),contentScale=ContentScale.Crop);Text(img.postDate,Modifier.align(Alignment.BottomStart).background(Color.Black.copy(.55f)).padding(6.dp),color=Color.White)}}}}
+    }
+    full?.let{url->androidx.compose.ui.window.Dialog(onDismissRequest={full=null}){AsyncImage(url,null,Modifier.fillMaxSize().clickable{full=null},contentScale=ContentScale.Fit)}}
+}
 
 private fun toJson(rows:List<ScheduleItemEntity>)=rows.joinToString(",","[\n","\n]"){"  {\"day\":${it.dayOfWeek},\"pair\":${it.pairNumber},\"numerator\":\"${it.numeratorSubject.replace("\"","\\\"")}\",\"denominator\":\"${it.denominatorSubject.replace("\"","\\\"")}\"}"}
