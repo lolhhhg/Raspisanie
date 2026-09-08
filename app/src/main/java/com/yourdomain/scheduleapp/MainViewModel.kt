@@ -12,8 +12,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 
 @HiltViewModel
 class MainViewModel @Inject constructor(private val repo:ScheduleRepository,private val parser:PdfScheduleParser,private val vk:VkRepository,@ApplicationContext context:Context):ViewModel(){
-    private val prefs=context.getSharedPreferences("day_modes",Context.MODE_PRIVATE)
-    val dayModes=MutableStateFlow((1..6).associateWith { day -> runCatching { DayMode.valueOf(prefs.getString("day_$day",DayMode.SAME.name)!!) }.getOrDefault(DayMode.SAME) })
+    private val prefs=context.getSharedPreferences("pair_modes",Context.MODE_PRIVATE)
+    val pairModes=MutableStateFlow((1..6).flatMap { day -> (1..5).map { pair -> "$day-$pair" to runCatching { PairMode.valueOf(prefs.getString("pair_${day}_$pair",PairMode.SPLIT.name)!!) }.getOrDefault(PairMode.SPLIT) } }.toMap())
     val selectedDay=MutableStateFlow(currentDay())
     val schedule=selectedDay.flatMapLatest(repo::day).stateIn(viewModelScope,SharingStarted.WhileSubscribed(5000),DailySchedule(currentDay(),(1..5).map(::SchedulePair)))
     val all=repo.all().stateIn(viewModelScope,SharingStarted.WhileSubscribed(5000),emptyList())
@@ -25,7 +25,7 @@ class MainViewModel @Inject constructor(private val repo:ScheduleRepository,priv
     fun importPdf(uri:Uri)=launch { repo.save(parser.parse(uri)); message.emit("Расписание импортировано") }
     fun refreshVk()=launch { vk.refresh(BuildConfig.VK_TOKEN); message.emit("Фото обновлены") }
     fun clearVk()=launch { vk.clear(); message.emit("Кэш очищен") }
-    fun setDayMode(day:Int,mode:DayMode){ dayModes.value=dayModes.value+(day to mode);prefs.edit().putString("day_$day",mode.name).apply() }
+    fun setPairMode(day:Int,pair:Int,mode:PairMode){ val key="$day-$pair";pairModes.value=pairModes.value+(key to mode);prefs.edit().putString("pair_${day}_$pair",mode.name).apply() }
     private fun launch(block:suspend()->Unit)=viewModelScope.launch { try { block() } catch(e:Exception){ message.emit(e.message?:"Ошибка") } }
     companion object { fun currentDay()=java.time.LocalDate.now().dayOfWeek.value.coerceIn(1,6) }
 }

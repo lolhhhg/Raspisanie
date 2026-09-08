@@ -50,7 +50,7 @@ private val Orange=Color(0xFFFF6B00)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun ScheduleScreen(vm:MainViewModel){
     val day by vm.selectedDay.collectAsState(); val schedule by vm.schedule.collectAsState(); val ctx=LocalContext.current
-    val modes by vm.dayModes.collectAsState(); val mode=modes[day]?:DayMode.SAME
+    val modes by vm.pairModes.collectAsState()
     val picker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){it?.let(vm::importPdf)}
     val createJson=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->uri?.let{ctx.contentResolver.openOutputStream(it)?.bufferedWriter()?.use{out->out.write(toJson(vm.all.value))}}}
     var edit by remember{mutableStateOf<Pair<Int,PartType>?>(null)}; var hw by remember{mutableStateOf<Pair<Int,PartType>?>(null)}
@@ -58,20 +58,17 @@ private val Orange=Color(0xFFFF6B00)
         Column(Modifier.padding(pad)){
             ScrollableTabRow(selectedTabIndex=day-1,edgePadding=0.dp){ listOf("ПН","ВТ","СР","ЧТ","ПТ","СБ").forEachIndexed{i,n->Tab(selected=day==i+1,onClick={vm.selectedDay.value=i+1},text={Text(n)})} }
             BellSchedule(day)
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=6.dp)){
-                listOf(DayMode.NUMERATOR to "Числ.",DayMode.DENOMINATOR to "Знам.",DayMode.SAME to "Одинаково").forEachIndexed{i,(m,label)->SegmentedButton(selected=mode==m,onClick={vm.setDayMode(day,m)},shape=SegmentedButtonDefaults.itemShape(i,3)){Text(label)}}
-            }
             if(schedule.pairs.all{it.numerator.subject.isBlank()&&it.denominator.subject.isBlank()}) Text("Загрузите PDF или добавьте пары вручную",Modifier.padding(16.dp),color=MaterialTheme.colorScheme.onSurfaceVariant)
-            LazyColumn(contentPadding=PaddingValues(12.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){items(schedule.pairs){p->PairCard(p,mode,day,{edit=it},{hw=it})}}
+            LazyColumn(contentPadding=PaddingValues(12.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){items(schedule.pairs){p->val pairMode=modes["$day-${p.pairNumber}"]?:PairMode.SPLIT;PairCard(p,pairMode,day,{vm.setPairMode(day,p.pairNumber,it)},{edit=it},{hw=it})}}
         }
     }
-    edit?.let{(n,part)-> val p=schedule.pairs[n-1]; EditDialog(n,part,if(part==PartType.NUMERATOR)p.numerator else p.denominator,{edit=null}){s,r,c->vm.edit(n,part,s,r,c||mode==DayMode.SAME);edit=null}}
+    edit?.let{(n,part)-> val p=schedule.pairs[n-1];val pairMode=modes["$day-$n"]?:PairMode.SPLIT; EditDialog(n,part,if(part==PartType.NUMERATOR)p.numerator else p.denominator,{edit=null}){s,r,c->vm.edit(n,part,s,r,c||pairMode==PairMode.SAME);edit=null}}
     hw?.let{(n,part)->val p=schedule.pairs[n-1];val d=if(part==PartType.NUMERATOR)p.numerator else p.denominator; HomeworkDialog(d.subject,d.homework,{hw=null}){vm.homework(n,part,it);hw=null}}
 }
 
-@Composable fun PairCard(p:SchedulePair,mode:DayMode,day:Int,onEdit:(Pair<Int,PartType>)->Unit,onHw:(Pair<Int,PartType>)->Unit){
+@Composable fun PairCard(p:SchedulePair,mode:PairMode,day:Int,onMode:(PairMode)->Unit,onEdit:(Pair<Int,PartType>)->Unit,onHw:(Pair<Int,PartType>)->Unit){
     val time=bellTimes(day)[p.pairNumber-1]
-    Card(Modifier.fillMaxWidth()){Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically){Column(horizontalAlignment=Alignment.CenterHorizontally){Box(Modifier.size(38.dp).background(Orange,CircleShape),contentAlignment=Alignment.Center){Text("${p.pairNumber}",color=Color.White,fontWeight=FontWeight.Bold)};Text(time,style=MaterialTheme.typography.labelSmall)};Spacer(Modifier.width(10.dp));when(mode){DayMode.NUMERATOR->PartColumn("ЧИСЛИТЕЛЬ",p.numerator,{onEdit(p.pairNumber to PartType.NUMERATOR)},{onHw(p.pairNumber to PartType.NUMERATOR)},Modifier.weight(1f));DayMode.DENOMINATOR->PartColumn("ЗНАМЕНАТЕЛЬ",p.denominator,{onEdit(p.pairNumber to PartType.DENOMINATOR)},{onHw(p.pairNumber to PartType.DENOMINATOR)},Modifier.weight(1f));DayMode.SAME->PartColumn("ОДИНАКОВАЯ ПАРА",p.numerator,{onEdit(p.pairNumber to PartType.NUMERATOR)},{onHw(p.pairNumber to PartType.NUMERATOR)},Modifier.weight(1f))}}}
+    Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Column(horizontalAlignment=Alignment.CenterHorizontally){Box(Modifier.size(38.dp).background(Orange,CircleShape),contentAlignment=Alignment.Center){Text("${p.pairNumber}",color=Color.White,fontWeight=FontWeight.Bold)};Text(time,style=MaterialTheme.typography.labelSmall)};Spacer(Modifier.weight(1f));SingleChoiceSegmentedButtonRow{SegmentedButton(selected=mode==PairMode.SAME,onClick={onMode(PairMode.SAME)},shape=SegmentedButtonDefaults.itemShape(0,2)){Text("Одна")};SegmentedButton(selected=mode==PairMode.SPLIT,onClick={onMode(PairMode.SPLIT)},shape=SegmentedButtonDefaults.itemShape(1,2)){Text("Ч/З")}}};Spacer(Modifier.height(8.dp));Row{if(mode==PairMode.SAME)PartColumn("ВСЕГДА",p.numerator,{onEdit(p.pairNumber to PartType.NUMERATOR)},{onHw(p.pairNumber to PartType.NUMERATOR)},Modifier.weight(1f))else{PartColumn("ЧИСЛИТЕЛЬ",p.numerator,{onEdit(p.pairNumber to PartType.NUMERATOR)},{onHw(p.pairNumber to PartType.NUMERATOR)},Modifier.weight(1f));VerticalDivider(Modifier.height(100.dp).padding(horizontal=6.dp));PartColumn("ЗНАМЕНАТЕЛЬ",p.denominator,{onEdit(p.pairNumber to PartType.DENOMINATOR)},{onHw(p.pairNumber to PartType.DENOMINATOR)},Modifier.weight(1f))}}}}
 }
 
 private fun bellTimes(day:Int)=if(day==1) listOf("09:00–10:20","10:40–12:00","12:20–13:40","14:00–15:20","15:40–17:00") else listOf("08:00–09:20","09:50–11:10","11:40–13:00","13:30–14:50","15:20–16:40")
