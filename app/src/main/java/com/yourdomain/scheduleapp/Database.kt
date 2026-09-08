@@ -31,5 +31,14 @@ data class VkPostImageEntity(@PrimaryKey val url: String, val postDate: String, 
     @Query("DELETE FROM vk_images") suspend fun clearAll()
 }
 
-@Database(entities = [ScheduleItemEntity::class, VkPostImageEntity::class], version = 1, exportSchema = false)
-abstract class AppDatabase : RoomDatabase() { abstract fun scheduleDao(): ScheduleDao; abstract fun vkImageDao(): VkImageDao }
+@Entity(tableName="app_state")
+data class StateEntity(@PrimaryKey val id:Int=1,val json:String)
+@Dao interface StateDao {
+    @Query("SELECT * FROM app_state WHERE id=1") suspend fun get():StateEntity?
+    @Insert(onConflict=OnConflictStrategy.REPLACE) suspend fun put(value:StateEntity)
+}
+val MIGRATION_1_2=object:androidx.room.migration.Migration(1,2){
+    override fun migrate(db:androidx.sqlite.db.SupportSQLiteDatabase){db.execSQL("CREATE TABLE IF NOT EXISTS app_state (id INTEGER NOT NULL, json TEXT NOT NULL, PRIMARY KEY(id))")}
+}
+@Database(entities = [ScheduleItemEntity::class, VkPostImageEntity::class,StateEntity::class], version = 2, exportSchema = false)
+abstract class AppDatabase : RoomDatabase() { abstract fun scheduleDao(): ScheduleDao; abstract fun vkImageDao(): VkImageDao; abstract fun stateDao():StateDao }

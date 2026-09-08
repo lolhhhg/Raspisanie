@@ -26,7 +26,7 @@ private fun times(day:Int)=if(day==1)listOf("09:00" to "10:20","10:40" to "12:00
 private fun click(context:Context)=PendingIntent.getActivity(context,0,Intent(context,MainActivity::class.java),PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 
 class NextPairWidget:AppWidgetProvider(){
-    override fun onUpdate(c:Context,m:AppWidgetManager,ids:IntArray)=update(c,m,ids)
+    override fun onUpdate(c:Context,m:AppWidgetManager,ids:IntArray){Background.refresh(c)}
     companion object { fun update(c:Context,m:AppWidgetManager,ids:IntArray){
         val date=LocalDate.now();val day=date.dayOfWeek.value;val now=LocalTime.now();val slots=if(day<=6)times(day)else emptyList()
         val index=slots.indexOfFirst{now<LocalTime.parse(it.second)}
@@ -39,6 +39,6 @@ class NextPairWidget:AppWidgetProvider(){
 }
 
 class BellsWidget:AppWidgetProvider(){
-    override fun onUpdate(c:Context,m:AppWidgetManager,ids:IntArray)=update(c,m,ids)
+    override fun onUpdate(c:Context,m:AppWidgetManager,ids:IntArray){Background.refresh(c)}
     companion object { fun update(c:Context,m:AppWidgetManager,ids:IntArray){val day=LocalDate.now().dayOfWeek.value;val lines=if(day<=6)times(day).mapIndexed{i,t->"${i+1}  ${t.first}–${t.second}"}.joinToString("   ")else "Сегодня выходной";ids.forEach{id->val v=RemoteViews(c.packageName,R.layout.widget_bells);v.setTextViewText(R.id.widget_bells_title,if(day==1)"ПОНЕДЕЛЬНИК · ЗВОНКИ" else "ЗВОНКИ СЕГОДНЯ");v.setTextViewText(R.id.widget_bells_text,lines);v.setOnClickPendingIntent(R.id.widget_bells_root,click(c));m.updateAppWidget(id,v)}}}
 }

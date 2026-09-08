@@ -13,7 +13,7 @@ import javax.inject.Singleton
 
 @Module @InstallIn(SingletonComponent::class)
 object AppModule {
-    @Provides @Singleton fun db(@ApplicationContext c:Context)=Room.databaseBuilder(c,AppDatabase::class.java,"schedule.db").build()
+    @Provides @Singleton fun db(@ApplicationContext c:Context)=Room.databaseBuilder(c,AppDatabase::class.java,"schedule.db").addMigrations(MIGRATION_1_2).build()
     @Provides fun scheduleDao(db:AppDatabase)=db.scheduleDao()
     @Provides fun imageDao(db:AppDatabase)=db.vkImageDao()
     @Provides @Singleton fun vkApi():VkApiService=Retrofit.Builder().baseUrl("https://api.vk.com/method/").addConverterFactory(GsonConverterFactory.create()).build().create(VkApiService::class.java)
