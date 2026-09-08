@@ -50,23 +50,32 @@ private val Orange=Color(0xFFFF6B00)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun ScheduleScreen(vm:MainViewModel){
     val day by vm.selectedDay.collectAsState(); val schedule by vm.schedule.collectAsState(); val ctx=LocalContext.current
+    val modes by vm.dayModes.collectAsState(); val mode=modes[day]?:DayMode.SAME
     val picker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){it?.let(vm::importPdf)}
     val createJson=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->uri?.let{ctx.contentResolver.openOutputStream(it)?.bufferedWriter()?.use{out->out.write(toJson(vm.all.value))}}}
     var edit by remember{mutableStateOf<Pair<Int,PartType>?>(null)}; var hw by remember{mutableStateOf<Pair<Int,PartType>?>(null)}
     Scaffold(topBar={TopAppBar(title={Text("РАСПИСАНИЕ")},actions={TextButton(onClick={vm.selectedDay.value=MainViewModel.currentDay()}){Text("Сегодня")};TextButton(onClick={createJson.launch("raspisanie.json")}){Text("JSON")}})},floatingActionButton={FloatingActionButton(onClick={picker.launch(arrayOf("application/pdf"))}){Text("PDF")}}){pad->
         Column(Modifier.padding(pad)){
             ScrollableTabRow(selectedTabIndex=day-1,edgePadding=0.dp){ listOf("ПН","ВТ","СР","ЧТ","ПТ","СБ").forEachIndexed{i,n->Tab(selected=day==i+1,onClick={vm.selectedDay.value=i+1},text={Text(n)})} }
+            BellSchedule(day)
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=6.dp)){
+                listOf(DayMode.NUMERATOR to "Числ.",DayMode.DENOMINATOR to "Знам.",DayMode.SAME to "Одинаково").forEachIndexed{i,(m,label)->SegmentedButton(selected=mode==m,onClick={vm.setDayMode(day,m)},shape=SegmentedButtonDefaults.itemShape(i,3)){Text(label)}}
+            }
             if(schedule.pairs.all{it.numerator.subject.isBlank()&&it.denominator.subject.isBlank()}) Text("Загрузите PDF или добавьте пары вручную",Modifier.padding(16.dp),color=MaterialTheme.colorScheme.onSurfaceVariant)
-            LazyColumn(contentPadding=PaddingValues(12.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){items(schedule.pairs){p->PairCard(p,{edit=it},{hw=it})}}
+            LazyColumn(contentPadding=PaddingValues(12.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){items(schedule.pairs){p->PairCard(p,mode,day,{edit=it},{hw=it})}}
         }
     }
-    edit?.let{(n,part)-> val p=schedule.pairs[n-1]; EditDialog(n,part,if(part==PartType.NUMERATOR)p.numerator else p.denominator,{edit=null}){s,r,c->vm.edit(n,part,s,r,c);edit=null}}
+    edit?.let{(n,part)-> val p=schedule.pairs[n-1]; EditDialog(n,part,if(part==PartType.NUMERATOR)p.numerator else p.denominator,{edit=null}){s,r,c->vm.edit(n,part,s,r,c||mode==DayMode.SAME);edit=null}}
     hw?.let{(n,part)->val p=schedule.pairs[n-1];val d=if(part==PartType.NUMERATOR)p.numerator else p.denominator; HomeworkDialog(d.subject,d.homework,{hw=null}){vm.homework(n,part,it);hw=null}}
 }
 
-@Composable fun PairCard(p:SchedulePair,onEdit:(Pair<Int,PartType>)->Unit,onHw:(Pair<Int,PartType>)->Unit){
-    Card(Modifier.fillMaxWidth()){Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically){Box(Modifier.size(38.dp).background(Orange,CircleShape),contentAlignment=Alignment.Center){Text("${p.pairNumber}",color=Color.White,fontWeight=FontWeight.Bold)};Spacer(Modifier.width(10.dp));PartColumn("ЧИСЛИТЕЛЬ",p.numerator,{onEdit(p.pairNumber to PartType.NUMERATOR)},{onHw(p.pairNumber to PartType.NUMERATOR)},Modifier.weight(1f));VerticalDivider(Modifier.height(100.dp).padding(horizontal=6.dp));PartColumn("ЗНАМЕНАТЕЛЬ",p.denominator,{onEdit(p.pairNumber to PartType.DENOMINATOR)},{onHw(p.pairNumber to PartType.DENOMINATOR)},Modifier.weight(1f))}}
+@Composable fun PairCard(p:SchedulePair,mode:DayMode,day:Int,onEdit:(Pair<Int,PartType>)->Unit,onHw:(Pair<Int,PartType>)->Unit){
+    val time=bellTimes(day)[p.pairNumber-1]
+    Card(Modifier.fillMaxWidth()){Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically){Column(horizontalAlignment=Alignment.CenterHorizontally){Box(Modifier.size(38.dp).background(Orange,CircleShape),contentAlignment=Alignment.Center){Text("${p.pairNumber}",color=Color.White,fontWeight=FontWeight.Bold)};Text(time,style=MaterialTheme.typography.labelSmall)};Spacer(Modifier.width(10.dp));when(mode){DayMode.NUMERATOR->PartColumn("ЧИСЛИТЕЛЬ",p.numerator,{onEdit(p.pairNumber to PartType.NUMERATOR)},{onHw(p.pairNumber to PartType.NUMERATOR)},Modifier.weight(1f));DayMode.DENOMINATOR->PartColumn("ЗНАМЕНАТЕЛЬ",p.denominator,{onEdit(p.pairNumber to PartType.DENOMINATOR)},{onHw(p.pairNumber to PartType.DENOMINATOR)},Modifier.weight(1f));DayMode.SAME->PartColumn("ОДИНАКОВАЯ ПАРА",p.numerator,{onEdit(p.pairNumber to PartType.NUMERATOR)},{onHw(p.pairNumber to PartType.NUMERATOR)},Modifier.weight(1f))}}}
 }
+
+private fun bellTimes(day:Int)=if(day==1) listOf("09:00–10:20","10:40–12:00","12:20–13:40","14:00–15:20","15:40–17:00") else listOf("08:00–09:20","09:50–11:10","11:40–13:00","13:30–14:50","15:20–16:40")
+@Composable fun BellSchedule(day:Int){val title=if(day==1)"Понедельник · разговоры о важном 08:00–08:45" else "Звонки вторник–пятница";Text(title,Modifier.fillMaxWidth().padding(8.dp),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)}
 @Composable fun PartColumn(title:String,d:PairDetail,edit:()->Unit,hw:()->Unit,modifier:Modifier){Column(modifier){Text(title,style=MaterialTheme.typography.labelSmall,color=Orange);Text(d.subject.ifBlank{"(нет)"},fontWeight=FontWeight.SemiBold,maxLines=2);if(d.room.isNotBlank())Text("Ауд. ${d.room}",style=MaterialTheme.typography.bodySmall);Row{TextButton(onClick=edit,contentPadding=PaddingValues(2.dp)){Text(if(d.subject.isBlank())"+ Добавить" else "✏ Ред.")};if(d.subject.isNotBlank())TextButton(onClick=hw,contentPadding=PaddingValues(2.dp)){Text("📝 ДЗ")}};if(d.homework.isNotBlank())Text(d.homework,maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.bodySmall)}}
 
 @Composable fun EditDialog(number:Int,initial:PartType,detail:PairDetail,cancel:()->Unit,save:(String,String,Boolean)->Unit){var subject by remember{mutableStateOf(detail.subject)};var room by remember{mutableStateOf(detail.room)};var copy by remember{mutableStateOf(false)};AlertDialog(onDismissRequest=cancel,title={Text("Редактировать пару №$number")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){Text(if(initial==PartType.NUMERATOR)"Числитель" else "Знаменатель",color=Orange);OutlinedTextField(subject,{subject=it},label={Text("Предмет")});OutlinedTextField(room,{room=it},label={Text("Аудитория")});Row(verticalAlignment=Alignment.CenterVertically){Checkbox(copy,{copy=it});Text("Скопировать в другую часть")}}},confirmButton={Button(onClick={save(subject,room,copy)}){Text("Сохранить")}},dismissButton={TextButton(onClick=cancel){Text("Отмена")}})}
@@ -76,19 +85,23 @@ private val Orange=Color(0xFFFF6B00)
 @Composable fun HomeworkScreen(vm:MainViewModel){
     val rows by vm.all.collectAsState()
     val dayNames=listOf("Понедельник","Вторник","Среда","Четверг","Пятница","Суббота")
+    var editing by remember{mutableStateOf<HwTask?>(null)}
     Scaffold(topBar={TopAppBar(title={Text("ДОМАШНЕЕ ЗАДАНИЕ")})}){pad->
         LazyColumn(Modifier.padding(pad),contentPadding=PaddingValues(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
             (1..6).forEach{d->
                 val dayRows=rows.filter{it.dayOfWeek==d}
-                val tasks=dayRows.flatMap{r->listOf(Triple(r.numeratorSubject,"Числ.",r.numeratorHomework),Triple(r.denominatorSubject,"Знам.",r.denominatorHomework))}.filter{it.third.isNotBlank()}
+                val tasks=dayRows.flatMap{r->listOf(HwTask(d,r.pairNumber,PartType.NUMERATOR,r.numeratorSubject,r.numeratorHomework),HwTask(d,r.pairNumber,PartType.DENOMINATOR,r.denominatorSubject,r.denominatorHomework))}.filter{it.text.isNotBlank()}
                 if(tasks.isNotEmpty()){
                     item{Text(dayNames[d-1],fontWeight=FontWeight.Bold,color=Orange)}
-                    items(tasks){t->Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){Text(t.first,fontWeight=FontWeight.Bold);Text(t.second,color=Orange);Text(t.third)}}}
+                    items(tasks){t->Card(Modifier.fillMaxWidth()){Column(Modifier.padding(12.dp)){Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(t.subject.ifBlank{"Без предмета"},fontWeight=FontWeight.Bold);Text("${t.pair} пара · ${if(t.part==PartType.NUMERATOR)"Числ." else "Знам."}",color=Orange)};Text(t.text);Row{TextButton(onClick={editing=t}){Text("✏ Изменить")};TextButton(onClick={vm.homeworkAt(t.day,t.pair,t.part,"")}){Text("🗑 Удалить")}}}}}
                 }
             }
         }
     }
+    editing?.let{t->HomeworkDialog(t.subject,t.text,{editing=null}){vm.homeworkAt(t.day,t.pair,t.part,it);editing=null}}
 }
+
+private data class HwTask(val day:Int,val pair:Int,val part:PartType,val subject:String,val text:String)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun VkScreen(vm:MainViewModel){
