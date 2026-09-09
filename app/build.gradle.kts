@@ -19,8 +19,8 @@ android {
         applicationId = "com.yourdomain.scheduleapp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "3.0.0"
+        versionCode = 6
+        versionName = "3.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "VK_TOKEN", "\"${localProperties.getProperty("vk.token", "")}\"")
     }

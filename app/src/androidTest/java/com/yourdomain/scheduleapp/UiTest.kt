@@ -11,6 +11,13 @@ class UiTest {
     @get:Rule val rule=createAndroidComposeRule<MainActivity>()
     @Test fun navigateAndCreateSubject(){
         rule.waitUntil(20000){rule.onAllNodesWithText("Впереди свободное время").fetchSemanticsNodes().isNotEmpty()}
+        rule.onNodeWithText("Ближайший автобус · В →").assertExists()
+        rule.onNodeWithText("Автобусы").performClick()
+        rule.onNodeWithText("Из ←").performClick()
+        rule.onNodeWithText("06:05").assertExists()
+        rule.onNodeWithText("В →").performClick()
+        rule.onNodeWithText("06:25").assertExists()
+        rule.onNodeWithText("Ещё").performClick()
         rule.onNodeWithText("Предметы").performClick()
         rule.onNodeWithContentDescription("Добавить предмет").performClick()
         rule.onNodeWithText("Название").performTextInput("Тест ОАП")

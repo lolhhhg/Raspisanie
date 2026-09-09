@@ -36,6 +36,53 @@ import dagger.hilt.android.AndroidEntryPoint
 import java.time.*
 import java.time.format.DateTimeFormatter
 
+@Composable private fun NextBusCard(now:LocalDateTime,open:()->Unit){
+    val next=BusSchedule.next(now)
+    Card(onClick=open,modifier=Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.secondaryContainer)){
+        Row(Modifier.padding(18.dp),verticalAlignment=Alignment.CenterVertically){
+            Icon(Icons.Rounded.DirectionsBus,null,Modifier.size(32.dp));Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)){
+                Text("Ближайший автобус · В →",fontWeight=FontWeight.Bold)
+                Text((if(next.toLocalDate()!=now.toLocalDate())"Завтра · " else "")+next.toLocalTime().toString(),fontSize=28.sp,fontWeight=FontWeight.Bold)
+                Text("Через ${countdown(next,now)} · по расписанию")
+            }
+            Icon(Icons.Rounded.ChevronRight,"Все рейсы")
+        }
+    }
+}
+@Composable private fun BusPage(now:LocalDateTime){
+    var inbound by remember{mutableStateOf(true)}
+    val next=BusSchedule.next(now,inbound)
+    val times=if(inbound)BusSchedule.inbound else BusSchedule.outbound
+    LazyColumn(contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+        item{PageTitle("Расписание автобусов","Оба направления · доступно офлайн")}
+        item{Row(horizontalArrangement=Arrangement.spacedBy(12.dp)){
+            FilterChip(inbound,{inbound=true},label={Text("В →")})
+            FilterChip(!inbound,{inbound=false},label={Text("Из ←")})
+        }}
+        item{Card(Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.primaryContainer)){
+            Column(Modifier.padding(20.dp)){
+                Text("Ближайший · "+if(inbound)"В →" else "Из ←")
+                Text((if(next.toLocalDate()!=now.toLocalDate())"Завтра · " else "")+next.toLocalTime(),fontSize=32.sp,fontWeight=FontWeight.Bold)
+                Text("Через ${countdown(next,now)}")
+            }
+        }}
+        item{Text("Время с ваших фотографий. Дни движения не указаны — таблица применяется ежедневно. Задержки не учитываются.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+        items(times.chunked(3)){row->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){
+            row.forEach{time->
+                val upcoming=time==next.toLocalTime()
+                val passed=now.toLocalDate().atTime(time)<now
+                Surface(Modifier.weight(1f),shape=RoundedCornerShape(16.dp),color=if(upcoming)MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant){
+                    Column(Modifier.padding(vertical=16.dp),horizontalAlignment=Alignment.CenterHorizontally){
+                        Text(time.toString(),fontSize=22.sp,fontWeight=if(upcoming)FontWeight.Bold else FontWeight.Normal,color=if(passed&&!upcoming)MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
+                        Text(if(upcoming)if(next.toLocalDate()!=now.toLocalDate())"Завтра" else "Ближайший" else if(passed)"Прошёл" else "Сегодня",style=MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+            repeat(3-row.size){Spacer(Modifier.weight(1f))}
+        }}
+    }
+}
 private val Accent=Color(0xFFFF6B35)
 private val Palette=listOf(0xFFFF6B35,0xFF5575E7,0xFF159C91,0xFFA262CC,0xFFD95478,0xFFAA7927)
 private val DateFormat=DateTimeFormatter.ofPattern("dd.MM.yyyy")
@@ -47,13 +94,14 @@ private val DateFormat=DateTimeFormatter.ofPattern("dd.MM.yyyy")
     val b by vm.data.collectAsState();val busy by vm.busy.collectAsState();val now by vm.now.collectAsState()
     val dark=when(b?.state?.preferences?.theme){"Тёмная"->true;"Светлая"->false;else->isSystemInDarkTheme()}
     MaterialTheme(colorScheme=if(dark)darkColorScheme(primary=Accent,background=Color(0xFF11141D),surface=Color(0xFF1B2030))else lightColorScheme(primary=Color(0xFFD64B21),background=Color(0xFFF6F5F1),surface=Color.White),shapes=Shapes(medium=RoundedCornerShape(20.dp),large=RoundedCornerShape(28.dp))){
-        var page by remember{mutableIntStateOf(initialPage.coerceIn(0,4))};val snackbar=remember{SnackbarHostState()};val toast by vm.toast.collectAsState();val error by vm.error.collectAsState();val preview by vm.preview.collectAsState()
+        var page by remember{mutableIntStateOf(initialPage.coerceIn(0,5))};val snackbar=remember{SnackbarHostState()};val toast by vm.toast.collectAsState();val error by vm.error.collectAsState();val preview by vm.preview.collectAsState()
+        androidx.activity.compose.BackHandler(page==3 || page==5){page=if(page==3)4 else 0}
         LaunchedEffect(toast){toast?.let{snackbar.showSnackbar(it);vm.toast.value=null}}
-        Scaffold(snackbarHost={SnackbarHost(snackbar)},bottomBar={NavigationBar{listOf("Сегодня" to Icons.Rounded.Today,"Неделя" to Icons.Rounded.DateRange,"ДЗ" to Icons.Rounded.TaskAlt,"Предметы" to Icons.Rounded.School,"Ещё" to Icons.Rounded.Tune).forEachIndexed{i,(label,icon)->NavigationBarItem(selected=page==i,onClick={page=i},icon={Icon(icon,label)},label={Text(label,maxLines=1)})}}}){padding->
+        Scaffold(snackbarHost={SnackbarHost(snackbar)},bottomBar={NavigationBar{listOf("Сегодня" to Icons.Rounded.Today,"Неделя" to Icons.Rounded.DateRange,"ДЗ" to Icons.Rounded.TaskAlt,"Автобусы" to Icons.Rounded.DirectionsBus,"Ещё" to Icons.Rounded.Tune).forEachIndexed{index,(label,icon)->val i=if(index==3)5 else index;NavigationBarItem(selected=page==i,onClick={page=i},icon={Icon(icon,label)},label={Text(label,maxLines=1)})}}}){padding->
             Box(Modifier.padding(padding).fillMaxSize()){
                 val data=b
                 if(data==null)Column(Modifier.align(Alignment.Center),horizontalAlignment=Alignment.CenterHorizontally){CircularProgressIndicator();Text("Загружаем сохранённое расписание…")}
-                else when(page){0->TodayPage(data,now,vm);1->WeekPage(data,now,vm);2->TasksPage(data,now,vm);3->SubjectsPage(data,vm);else->SettingsPage(data,vm)}
+                else when(page){0->TodayPage(data,now,vm){page=5};1->WeekPage(data,now,vm);2->TasksPage(data,now,vm);3->SubjectsPage(data,vm);5->BusPage(now);else->SettingsPage(data,vm){page=3}}
                 if(busy)Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha=.15f)).clickable{},contentAlignment=Alignment.Center){CircularProgressIndicator()}
             }
         }
@@ -65,7 +113,7 @@ private val DateFormat=DateTimeFormatter.ofPattern("dd.MM.yyyy")
 @Composable private fun EmptyState(text:String){Card(Modifier.fillMaxWidth()){Column(Modifier.padding(24.dp)){Icon(Icons.Rounded.AutoAwesome,null,tint=Accent);Spacer(Modifier.height(8.dp));Text(text)}}}
 private fun weekLabel(part:PartType)=if(part==PartType.NUMERATOR)"Числитель" else "Знаменатель"
 private fun countdown(to:LocalDateTime,now:LocalDateTime):String{val s=Duration.between(now,to).seconds.coerceAtLeast(0);return if(s>=86400)"${s/86400} д" else "%02d:%02d:%02d".format(s/3600,(s%3600)/60,s%60)}
-@Composable private fun TodayPage(b:Backup,now:LocalDateTime,vm:PlannerViewModel){
+@Composable private fun TodayPage(b:Backup,now:LocalDateTime,vm:PlannerViewModel,openBuses:()->Unit){
     val date=now.toLocalDate();val lessons=Planner.lessons(date,b);val next=Planner.next(now,b);var task by remember{mutableStateOf<Assignment?>(null)}
     LazyColumn(contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
         item{PageTitle("Сегодня",Planner.days[date.dayOfWeek.value-1]+" · "+date.format(DateFormat))}
@@ -80,6 +128,7 @@ private fun countdown(to:LocalDateTime,now:LocalDateTime):String{val s=Duration.
                 }
             }
         }}
+        item{NextBusCard(now,openBuses)}
         if(date.dayOfWeek==DayOfWeek.MONDAY)item{Text("08:00–08:45 · Разговоры о важном",color=MaterialTheme.colorScheme.primary)}
         if(lessons.isEmpty())item{EmptyState(if(date.dayOfWeek==DayOfWeek.SUNDAY)"Воскресенье — выходной" else "На сегодня пар нет. Заполните расписание во вкладке «Неделя».")}
         items(lessons){l->val s=b.state.subjects.find{Planner.normalize(it.name)==Planner.normalize(l.detail.subject)};Card(Modifier.fillMaxWidth()){Row(Modifier.padding(16.dp)){Column(Modifier.width(64.dp)){Text("${l.number}",color=Color(s?.color?:Palette[0]),fontSize=28.sp,fontWeight=FontWeight.Bold);Text(l.start.toLocalTime().toString(),style=MaterialTheme.typography.labelMedium);Text(l.end.toLocalTime().toString(),style=MaterialTheme.typography.labelMedium)};Column(Modifier.weight(1f)){Text(l.detail.subject,fontWeight=FontWeight.Bold,fontSize=19.sp);if(l.detail.room.isNotBlank())Text("Аудитория ${l.detail.room}");if(!s?.teacher.isNullOrBlank())Text(s!!.teacher,style=MaterialTheme.typography.bodySmall);if(!s?.kind.isNullOrBlank())Text(s!!.kind,style=MaterialTheme.typography.labelSmall);Row{TextButton(onClick={task=Assignment(subject=l.detail.subject,due=date.toString())}){Text("Добавить ДЗ")};IconButton(onClick={vm.calendar(l)}){Icon(Icons.Rounded.EventAvailable,"В календарь")}}}}}}
@@ -117,7 +166,7 @@ private fun countdown(to:LocalDateTime,now:LocalDateTime):String{val s=Duration.
     OutlinedTextField(d.subject,{change(d.copy(subject=it))},label={Text("Предмет")},modifier=Modifier.fillMaxWidth(),trailingIcon={IconButton(onClick={pick=true}){Icon(Icons.Rounded.ArrowDropDown,"Выбрать предмет")}});OutlinedTextField(d.room,{change(d.copy(room=it))},label={Text("Аудитория")},modifier=Modifier.fillMaxWidth());Row{TextButton(onClick={pick=true}){Text("Из справочника")};TextButton(onClick={change(d.copy(subject="",room=""))}){Text("Нет пары")}}
     if(pick)SubjectPicker(subjects,{pick=false}){change(d.copy(subject=it.name,room=it.room));pick=false}
 }
-@Composable private fun SubjectPicker(subjects:List<Subject>,close:()->Unit,pick:(Subject)->Unit){var search by remember{mutableStateOf("")};AlertDialog(onDismissRequest=close,title={Text("Выбор предмета")},text={Column{OutlinedTextField(search,{search=it},label={Text("Поиск")});LazyColumn(Modifier.heightIn(max=320.dp)){items(subjects.filter{it.name.contains(search,true)},key={it.id}){s->ListItem(headlineContent={Text(s.name)},supportingContent={Text(s.room)},modifier=Modifier.clickable{pick(s)})};if(subjects.isEmpty())item{Text("Добавьте предмет во вкладке «Предметы» или впишите вручную.")}}}},confirmButton={TextButton(onClick=close){Text("Закрыть")}})}
+@Composable private fun SubjectPicker(subjects:List<Subject>,close:()->Unit,pick:(Subject)->Unit){var search by remember{mutableStateOf("")};AlertDialog(onDismissRequest=close,title={Text("Выбор предмета")},text={Column{OutlinedTextField(search,{search=it},label={Text("Поиск")});LazyColumn(Modifier.heightIn(max=320.dp)){items(subjects.filter{it.name.contains(search,true)},key={it.id}){s->ListItem(headlineContent={Text(s.name)},supportingContent={Text(s.room)},modifier=Modifier.clickable{pick(s)})};if(subjects.isEmpty())item{Text("Добавьте предмет в «Ещё → Предметы» или впишите вручную.")}}}},confirmButton={TextButton(onClick=close){Text("Закрыть")}})}
 @Composable private fun SubjectsPage(b:Backup,vm:PlannerViewModel){var edit by remember{mutableStateOf<Subject?>(null)};var search by remember{mutableStateOf("")};var deleting by remember{mutableStateOf<Subject?>(null)}
     LazyColumn(contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
         item{PageTitle("Предметы","Один раз добавить — быстро выбирать",{IconButton(onClick={edit=Subject()}){Icon(Icons.Rounded.Add,"Добавить предмет")}})};item{OutlinedTextField(search,{search=it},label={Text("Найти предмет")},modifier=Modifier.fillMaxWidth())}
@@ -142,10 +191,10 @@ private fun countdown(to:LocalDateTime,now:LocalDateTime):String{val s=Duration.
     OutlinedTextField(t.subject,{t=t.copy(subject=it)},label={Text("Предмет")},trailingIcon={IconButton(onClick={picker=true}){Icon(Icons.Rounded.ArrowDropDown,"Выбрать")}});OutlinedTextField(t.text,{t=t.copy(text=it)},label={Text("Что нужно сделать?")},minLines=3);DateChoice("Срок",t.due){t=t.copy(due=it)};if(t.due.isNotBlank())TextButton(onClick={t=t.copy(due="")}){Text("Без срока")};Text("Одно задание для всех пар предмета — без дублирования.",style=MaterialTheme.typography.bodySmall)
 }},confirmButton={Button(enabled=t.subject.isNotBlank()&&t.text.isNotBlank(),onClick={save(t)}){Text("Сохранить")}},dismissButton={TextButton(onClick=close){Text("Отмена")}});if(picker)SubjectPicker(subjects,{picker=false}){t=t.copy(subject=it.name);picker=false}}
 @Composable private fun DateChoice(label:String,value:String,change:(String)->Unit){val ctx=LocalContext.current;OutlinedButton(onClick={val d=runCatching{LocalDate.parse(value)}.getOrDefault(LocalDate.now());DatePickerDialog(ctx,{_,y,m,day->change(LocalDate.of(y,m+1,day).toString())},d.year,d.monthValue-1,d.dayOfMonth).show()}){Icon(Icons.Rounded.CalendarMonth,null);Text("$label: "+if(value.isBlank())"не выбран" else LocalDate.parse(value).format(DateFormat))}}
-@Composable private fun SettingsPage(b:Backup,vm:PlannerViewModel){val ctx=LocalContext.current;val export=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){it?.let(vm::export)};val import=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){it?.let(vm::importJson)};val pdf=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){it?.let(vm::importPdf)};val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){Background.refresh(ctx)};val p=b.state.preferences;var vk by remember{mutableStateOf(false)}
+@Composable private fun SettingsPage(b:Backup,vm:PlannerViewModel,openSubjects:()->Unit){val ctx=LocalContext.current;val export=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){it?.let(vm::export)};val import=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){it?.let(vm::importJson)};val pdf=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){it?.let(vm::importPdf)};val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){Background.refresh(ctx)};val p=b.state.preferences;var vk by remember{mutableStateOf(false)}
     val exact=if(Build.VERSION.SDK_INT>=31)ctx.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()else true;val notifications=androidx.core.app.NotificationManagerCompat.from(ctx).areNotificationsEnabled()
     LazyColumn(contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
-        item{PageTitle("Настройки","Расписание · ${BuildConfig.VERSION_NAME}")};item{Text("Резервные копии",fontSize=20.sp,fontWeight=FontWeight.Bold);Text("В базе: ${b.rows.size} ячеек · ${b.state.subjects.size} предметов · ${b.state.tasks.size} ДЗ. Сохраняется до 20 предыдущих состояний.")}
+        item{PageTitle("Настройки","Расписание · ${BuildConfig.VERSION_NAME}")};item{OutlinedButton(onClick=openSubjects,modifier=Modifier.fillMaxWidth()){Icon(Icons.Rounded.School,null);Spacer(Modifier.width(8.dp));Text("Предметы")}};item{Text("Резервные копии",fontSize=20.sp,fontWeight=FontWeight.Bold);Text("В базе: ${b.rows.size} ячеек · ${b.state.subjects.size} предметов · ${b.state.tasks.size} ДЗ. Сохраняется до 20 предыдущих состояний.")}
         item{SettingsAction(Icons.Rounded.SaveAlt,"Сохранить и проверить JSON"){export.launch("raspisanie-${LocalDate.now()}.json")};SettingsAction(Icons.Rounded.Share,"Поделиться резервной копией",vm::share);SettingsAction(Icons.Rounded.Restore,"Восстановить из JSON"){import.launch(arrayOf("application/json","text/plain","application/octet-stream"))};SettingsAction(Icons.Rounded.History,"Предыдущее состояние",vm::rollback);SettingsAction(Icons.Rounded.PictureAsPdf,"Импорт PDF с проверкой"){pdf.launch(arrayOf("application/pdf"))};Text("Внутренняя копия не защищает от удаления приложения. Сохраните JSON вне приложения и пришлите его мне для встраивания расписания.",style=MaterialTheme.typography.bodySmall)}
         item{HorizontalDivider();Text("Недели",fontSize=20.sp,fontWeight=FontWeight.Bold);DateChoice("Опорная дата",p.anchor){vm.preferences(p.copy(anchor=it))};Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){PartType.values().forEach{part->FilterChip(p.anchorPart==part,{vm.preferences(p.copy(anchorPart=part))},label={Text(weekLabel(part))})}};Text("Укажите тип недели опорной даты. Смена — в понедельник.",style=MaterialTheme.typography.bodySmall)}
         item{HorizontalDivider();Text("Оформление",fontSize=20.sp,fontWeight=FontWeight.Bold);FlowRow(horizontalArrangement=Arrangement.spacedBy(6.dp)){listOf("Системная","Светлая","Тёмная").forEach{t->FilterChip(p.theme==t,{vm.preferences(p.copy(theme=t))},label={Text(t)})}}}
